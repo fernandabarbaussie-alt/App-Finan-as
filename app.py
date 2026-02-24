@@ -38,18 +38,17 @@ if not st.session_state["autenticado"]:
             st.rerun()
     st.stop()
 
-# --- BANCO DE DADOS (COM CORREÇÃO AUTOMÁTICA) ---
-conn = sqlite3.connect("familybank_v4.db", check_same_thread=False)
+# --- BANCO DE DADOS ---
+conn = sqlite3.connect("familybank_v5.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT, data_pagamento TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, categoria TEXT, valor REAL, data TEXT)")
 
-# Tenta adicionar a coluna categoria se ela não existir (evita o KeyError)
+# Garantia de coluna categoria
 try:
     cursor.execute("ALTER TABLE investimentos ADD COLUMN categoria TEXT DEFAULT 'Outros'")
 except:
     pass
-
 conn.commit()
 
 # --- FUNÇÕES ---
@@ -67,7 +66,7 @@ def acao_excluir(id_item, tabela="contas"):
 # --- DADOS ---
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 df_i = pd.read_sql("SELECT * FROM investimentos", conn)
-t_a_pagar = df_c[df_c['pago'] == 0]['valor'].sum()
+t_saidas = df_c[df_c['pago'] == 0]['valor'].sum()
 t_investido = df_i['valor'].sum()
 
 st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
@@ -75,21 +74,21 @@ st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; ma
 tab1, tab2, tab3, tab4 = st.tabs(["⚡ PAINEL", "📈 INVEST", "📑 HISTÓRICO", "➕ NOVO"])
 
 with tab1:
-    st.markdown(f"<div style='background-color:#000;padding:15px;border-radius:12px;color:white;text-align:center;border:2px solid #001f3f;'><div style='display:flex;justify-content:space-around;'><div><small>A PAGAR</small><br><b style='font-size:22px;'>R$ {t_a_pagar:,.2f}</b></div><div style='border-left:1px solid #333;'></div><div><small>PATRIMÔNIO</small><br><b style='font-size:22px;color:#94a3b8;'>R$ {t_investido:,.2f}</b></div></div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='background-color:#000;padding:15px;border-radius:12px;color:white;text-align:center;border:2px solid #001f3f;'><div style='display:flex;justify-content:space-around;'><div><small>SAÍDAS PENDENTES</small><br><b style='font-size:22px;'>R$ {t_saidas:,.2f}</b></div><div style='border-left:1px solid #333;'></div><div><small>PATRIMÔNIO</small><br><b style='font-size:22px;color:#94a3b8;'>R$ {t_investido:,.2f}</b></div></div></div>", unsafe_allow_html=True)
     for resp in ["Fernanda", "Jonathan"]:
         st.markdown(f"<div class='section-title'>{resp.upper()}</div>", unsafe_allow_html=True)
         df_p = df_c[(df_c['responsavel'] == resp) & (df_c['pago'] == 0)]
-        if df_p.empty: st.write("✓ Tudo em dia.")
+        if df_p.empty: st.write("✓ Nenhuma saída pendente.")
         else:
             for _, r in df_p.iterrows():
                 st.markdown(f"<div class='expense-card'><div style='display:flex;justify-content:space-between;'><span class='card-desc'>{r['descricao']}</span><span class='card-price'>R$ {r['valor']:,.2f}</span></div><span class='card-date'>Venc: {r['vencimento']}</span></div>", unsafe_allow_html=True)
                 c1, c2 = st.columns(2)
-                c1.button("PAGO ✅", key=f"p_{r['id']}", on_click=acao_pagar, args=(r['id'],))
-                c2.button("EXCLUIR 🗑️", key=f"e_{r['id']}", on_click=acao_excluir, args=(r['id'],))
+                c1.button("LIQUIDADO ✅", key=f"p_{r['id']}", on_click=acao_pagar, args=(r['id'],))
+                c2.button("REMOVER 🗑️", key=f"e_{r['id']}", on_click=acao_excluir, args=(r['id'],))
 
 with tab2:
     st.markdown("<div class='section-title'>PATRIMÔNIO</div>", unsafe_allow_html=True)
-    st.metric("Total Acumulado", f"R$ {t_investido:,.2f}")
+    st.metric("Investido Total", f"R$ {t_investido:,.2f}")
     cats = ["Renda Fixa", "Renda Variável", "Tesouro Direto", "Cripto", "COE", "Previdência Privada", "Outros"]
     for cat in cats:
         df_cat = df_i[df_i['categoria'] == cat] if 'categoria' in df_i.columns else pd.DataFrame()
@@ -97,27 +96,27 @@ with tab2:
             with st.expander(f"📁 {cat.upper()} - R$ {df_cat['valor'].sum():,.2f}"):
                 for _, inv in df_cat.iterrows():
                     st.write(f"**{inv['descricao']}** - R$ {inv['valor']:,.2f}")
-                    st.button("Excluir", key=f"di_{inv['id']}", on_click=acao_excluir, args=(inv['id'], "investimentos"))
+                    st.button("Remover", key=f"di_{inv['id']}", on_click=acao_excluir, args=(inv['id'], "investimentos"))
 
 with tab3:
-    st.markdown("<div class='section-title'>HISTÓRICO</div>", unsafe_allow_html=True)
-    pesq = st.text_input("🔍 Buscar...")
+    st.markdown("<div class='section-title'>HISTÓRICO DE SAÍDAS</div>", unsafe_allow_html=True)
+    pesq = st.text_input("🔍 Buscar saída...")
     df_h = df_c[df_c['pago'] == 1].copy()
     if pesq: df_h = df_h[df_h['descricao'].str.contains(pesq, case=False) | df_h['responsavel'].str.contains(pesq, case=False)]
-    if not df_h.empty: st.table(df_h[['responsavel', 'descricao', 'valor', 'vencimento', 'data_pagamento']])
+    if not df_h.empty: st.table(df_h[['responsavel', 'descricao', 'valor', 'vencimento', 'data_pagamento']].rename(columns={'responsavel':'Quem', 'descricao':'Descrição', 'valor':'R$', 'vencimento':'Venc.', 'data_pagamento':'Pago em'}))
 
 with tab4:
-    tipo = st.radio("Registro:", ["Conta", "Investimento"], horizontal=True)
+    tipo = st.radio("Registrar:", ["Saída", "Investimento"], horizontal=True)
     with st.form("f_add", clear_on_submit=True):
-        if tipo == "Conta":
+        if tipo == "Saída":
             res, cat_inv = st.selectbox("Quem?", ["Fernanda", "Jonathan"]), "N/A"
-            des = st.text_input("Nome da Conta")
+            des = st.text_input("Descrição da Saída")
         else:
-            cat_inv = st.selectbox("Tipo:", cats)
+            cat_inv = st.selectbox("Tipo de Ativo:", cats)
             des, res = st.text_input("Nome do Título"), "Geral"
-        val, dat = st.number_input("Valor", min_value=0.0), st.date_input("Data")
+        val, dat = st.number_input("Valor R$", min_value=0.0), st.date_input("Data")
         if st.form_submit_button("REGISTRAR"):
-            if tipo == "Conta": cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (des, val, dat.strftime("%d/%m"), res))
+            if tipo == "Saída": cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (des, val, dat.strftime("%d/%m"), res))
             else: cursor.execute("INSERT INTO investimentos (descricao, categoria, valor, data) VALUES (?, ?, ?, ?)", (des, cat_inv, val, dat.strftime("%d/%m")))
             conn.commit()
             st.rerun()
