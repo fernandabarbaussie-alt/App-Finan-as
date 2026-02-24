@@ -13,12 +13,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- UI/UX ALTO CONTRASTE (FOCO EM LEITURA NO CELULAR) ---
+# --- UI/UX ALTO CONTRASTE (SEM VERDE) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
     
-    /* Cores de Alto Contraste */
     html, body, [class*="css"] { 
         font-family: 'Roboto', sans-serif; 
         background-color: #FFFFFF !important; 
@@ -28,18 +27,17 @@ st.markdown("""
     header, footer, #MainMenu {visibility: hidden;}
     .block-container {padding-top: 1rem; max-width: 600px; margin: auto;}
 
-    /* Títulos das Seções (Nomes) */
+    /* Títulos em Azul Marinho Profundo */
     .section-title { 
-        color: #002366; 
+        color: #001f3f; 
         font-weight: 900; 
         font-size: 24px; 
         margin-top: 20px; 
-        border-bottom: 4px solid #00C853;
+        border-bottom: 4px solid #001f3f;
         width: 100%;
         padding-bottom: 5px;
     }
 
-    /* Cards de Contas */
     .expense-card { 
         background: #F9F9F9; 
         border-radius: 10px; 
@@ -52,12 +50,12 @@ st.markdown("""
     .card-price { font-size: 20px; font-weight: 900; color: #D32F2F; }
     .card-date { font-size: 14px; color: #444444; font-weight: bold; }
 
-    /* Estilo das Abas */
-    .stTabs [data-baseweb="tab-list"] { background-color: #002366; border-radius: 10px; padding: 5px; }
+    /* Abas em Azul Marinho */
+    .stTabs [data-baseweb="tab-list"] { background-color: #001f3f; border-radius: 10px; padding: 5px; }
     .stTabs [data-baseweb="tab"] { color: #FFFFFF !important; font-weight: bold; }
-    .stTabs [aria-selected="true"] { background-color: #00C853 !important; border-radius: 8px; }
+    .stTabs [aria-selected="true"] { background-color: #334e68 !important; border-radius: 8px; }
 
-    /* Botões Grandes */
+    /* Botões em Branco e Preto */
     .stButton>button { 
         border: 2px solid #000000; 
         border-radius: 8px; 
@@ -68,35 +66,43 @@ st.markdown("""
         box-shadow: 3px 3px 0px #000000;
     }
     
-    /* Input de Senha e Forms */
-    input { border: 2px solid #000000 !important; border-radius: 8px !important; }
+    input { border: 2px solid #000000 !important; border-radius: 8px !important; height: 3rem; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SISTEMA DE LOGIN ---
+# --- LOGIN ---
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
 if not st.session_state["autenticado"]:
-    st.markdown("<h2 style='text-align: center; color: #002366; font-weight: 900;'>🔐 FamilyBank</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #001f3f; font-weight: 900;'>🔐 FamilyBank</h2>", unsafe_allow_html=True)
     senha = st.text_input("Senha da Família", type="password")
     if st.button("ENTRAR NO PAINEL"):
         if senha == SENHA_ACESSO:
             st.session_state["autenticado"] = True
             st.rerun()
-        else:
-            st.error("Senha incorreta.")
     st.stop()
 
 # --- BANCO DE DADOS ---
-conn = sqlite3.connect("familybank_v2.db", check_same_thread=False)
+conn = sqlite3.connect("familybank_v3.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT)")
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS contas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, 
+        descricao TEXT, 
+        valor REAL, 
+        vencimento TEXT, 
+        pago INTEGER DEFAULT 0, 
+        responsavel TEXT,
+        data_pagamento TEXT
+    )
+""")
 conn.commit()
 
-# --- FUNÇÕES DE GESTÃO ---
+# --- FUNÇÕES ---
 def acao_pagar(id_conta):
-    cursor.execute("UPDATE contas SET pago = 1 WHERE id = ?", (id_conta,))
+    data_hoje = datetime.date.today().strftime("%d/%m/%Y")
+    cursor.execute("UPDATE contas SET pago = 1, data_pagamento = ? WHERE id = ?", (data_hoje, id_conta))
     conn.commit()
     st.rerun()
 
@@ -106,91 +112,75 @@ def acao_excluir(id_conta):
     st.rerun()
 
 # --- HEADER E RESUMO ---
-st.markdown("<h1 style='text-align: center; color: #002366; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
 
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 total_a_pagar = df_c[df_c['pago'] == 0]['valor'].sum()
 total_pago = df_c[df_c['pago'] == 1]['valor'].sum()
 
-# --- NAVEGAÇÃO ---
 tab1, tab2, tab3 = st.tabs(["⚡ PAINEL", "📑 HISTÓRICO", "➕ NOVO"])
 
 with tab1:
-    # Resumo de Totais (Fundo Preto para contraste máximo)
+    # Resumo em Preto e Branco (Alto Contraste)
     st.markdown(f"""
-    <div style="background-color: #000000; padding: 15px; border-radius: 12px; color: white; text-align: center; border: 2px solid #00C853;">
+    <div style="background-color: #000000; padding: 15px; border-radius: 12px; color: white; text-align: center; border: 2px solid #001f3f;">
         <div style="display: flex; justify-content: space-around;">
-            <div><small>A PAGAR</small><br><b style="font-size: 22px; color: #FFD700;">R$ {total_a_pagar:,.2f}</b></div>
+            <div><small>FALTA PAGAR</small><br><b style="font-size: 22px; color: #FFFFFF;">R$ {total_a_pagar:,.2f}</b></div>
             <div style="border-left: 1px solid #333;"></div>
-            <div><small>PAGO</small><br><b style="font-size: 22px; color: #00FFA3;">R$ {total_pago:,.2f}</b></div>
+            <div><small>JÁ PAGO</small><br><b style="font-size: 22px; color: #94a3b8;">R$ {total_pago:,.2f}</b></div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- SEÇÃO FERNANDA ---
-    st.markdown("<div class='section-title'>FERNANDA</div>", unsafe_allow_html=True)
-    df_f = df_c[(df_c['responsavel'] == 'Fernanda') & (df_c['pago'] == 0)]
-    if df_f.empty:
-        st.write("✅ Nenhuma conta pendente.")
-    else:
-        for _, r in df_f.iterrows():
-            st.markdown(f"""
-                <div class='expense-card'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <span class='card-desc'>{r['descricao']}</span>
-                        <span class='card-price'>R$ {r['valor']:,.2f}</span>
+    for responsavel in ["Fernanda", "Jonathan"]:
+        st.markdown(f"<div class='section-title'>{responsavel.upper()}</div>", unsafe_allow_html=True)
+        df_resp = df_c[(df_c['responsavel'] == responsavel) & (df_c['pago'] == 0)]
+        
+        if df_resp.empty:
+            st.write("✓ Tudo em dia.")
+        else:
+            for _, r in df_resp.iterrows():
+                st.markdown(f"""
+                    <div class='expense-card'>
+                        <div style='display: flex; justify-content: space-between;'>
+                            <span class='card-desc'>{r['descricao']}</span>
+                            <span class='card-price'>R$ {r['valor']:,.2f}</span>
+                        </div>
+                        <span class='card-date'>Vencimento: {r['vencimento']}</span>
                     </div>
-                    <span class='card-date'>Vencimento: {r['vencimento']}</span>
-                </div>
-            """, unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            c1.button("PAGO ✅", key=f"p_f_{r['id']}", on_click=acao_pagar, args=(r['id'],))
-            c2.button("EXCLUIR 🗑️", key=f"e_f_{r['id']}", on_click=acao_excluir, args=(r['id'],))
-
-    # --- SEÇÃO JONATHAN ---
-    st.markdown("<div class='section-title'>JONATHAN</div>", unsafe_allow_html=True)
-    df_j = df_c[(df_c['responsavel'] == 'Jonathan') & (df_c['pago'] == 0)]
-    if df_j.empty:
-        st.write("✅ Nenhuma conta pendente.")
-    else:
-        for _, r in df_j.iterrows():
-            st.markdown(f"""
-                <div class='expense-card'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <span class='card-desc'>{r['descricao']}</span>
-                        <span class='card-price'>R$ {r['valor']:,.2f}</span>
-                    </div>
-                    <span class='card-date'>Vencimento: {r['vencimento']}</span>
-                </div>
-            """, unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            c1.button("PAGO ✅", key=f"p_j_{r['id']}", on_click=acao_pagar, args=(r['id'],))
-            c2.button("EXCLUIR 🗑️", key=f"e_j_{r['id']}", on_click=acao_excluir, args=(r['id'],))
+                """, unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                c1.button("MARCAR PAGO", key=f"p_{r['id']}", on_click=acao_pagar, args=(r['id'],))
+                c2.button("EXCLUIR", key=f"e_{r['id']}", on_click=acao_excluir, args=(r['id'],))
 
 with tab2:
-    st.markdown(f"### 📑 Contas Pagas (Total: R$ {total_pago:,.2f})")
-    df_pagas = df_c[df_c['pago'] == 1]
-    if df_pagas.empty:
-        st.info("O histórico está vazio.")
+    st.markdown("<div class='section-title'>HISTÓRICO DE PAGOS</div>", unsafe_allow_html=True)
+    pesquisa = st.text_input("🔍 Buscar no histórico...")
+    
+    df_historico = df_c[df_c['pago'] == 1].copy()
+    if pesquisa:
+        df_historico = df_historico[
+            df_historico['descricao'].str.contains(pesquisa, case=False) | 
+            df_historico['responsavel'].str.contains(pesquisa, case=False)
+        ]
+
+    if df_historico.empty:
+        st.info("Nenhum registro.")
     else:
-        # Tabela em alto contraste
-        st.table(df_pagas[['responsavel', 'descricao', 'valor', 'vencimento']])
-        if st.button("LIMPAR HISTÓRICO"):
-            cursor.execute("DELETE FROM contas WHERE pago = 1")
-            conn.commit()
-            st.rerun()
+        df_show = df_historico[['responsavel', 'descricao', 'valor', 'vencimento', 'data_pagamento']].rename(columns={
+            'responsavel': 'Quem', 'descricao': 'Conta', 'valor': 'R$', 'vencimento': 'Venc.', 'data_pagamento': 'Pago em'
+        })
+        st.table(df_show)
 
 with tab3:
-    st.markdown("<div class='section-title'>NOVO GASTO</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>ADICIONAR CONTA</div>", unsafe_allow_html=True)
     with st.form("add_form", clear_on_submit=True):
-        res = st.selectbox("Quem é o dono?", ["Fernanda", "Jonathan"])
-        des = st.text_input("O que é?")
+        res = st.selectbox("Responsável", ["Fernanda", "Jonathan"])
+        des = st.text_input("Nome da Conta")
         val = st.number_input("Valor R$", min_value=0.0, step=0.01)
-        dat = st.date_input("Data do Vencimento")
-        if st.form_submit_button("REGISTRAR NO SISTEMA"):
-            data_simples = dat.strftime("%d/%m")
+        dat = st.date_input("Vencimento")
+        if st.form_submit_button("REGISTRAR"):
             cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", 
-                         (des, val, data_simples, res))
+                         (des, val, dat.strftime("%d/%m"), res))
             conn.commit()
-            st.balloons()
             st.rerun()
