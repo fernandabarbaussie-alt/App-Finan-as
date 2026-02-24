@@ -93,4 +93,69 @@ with tab1:
 
     # --- SEÇÃO FERNANDA ---
     st.markdown("<div class='section-title'>FERNANDA</div>", unsafe_allow_html=True)
-    contas_f = df_c[(df
+    contas_f = df_c[(df_c['responsavel'] == 'Fernanda') & (df_c['pago'] == 0)]
+    
+    if contas_f.empty:
+        st.write("✨ Nenhuma conta pendente.")
+    else:
+        for _, r in contas_f.iterrows():
+            st.markdown(f"""
+                <div class='expense-card'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <b>{r['descricao']}</b>
+                        <b style='color: #1F3A93;'>R$ {r['valor']:,.2f}</b>
+                    </div>
+                    <small>Vencimento: {r['vencimento']}</small>
+                </div>
+            """, unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1: st.button("✅ Pagar", key=f"f_p_{r['id']}", on_click=marcar_pago, args=(r['id'],))
+            with c2: st.button("🗑️ Excluir", key=f"f_e_{r['id']}", on_click=excluir_conta, args=(r['id'],))
+
+    # --- SEÇÃO JONATHAN ---
+    st.markdown("<div class='section-title'>JONATHAN</div>", unsafe_allow_html=True)
+    contas_j = df_c[(df_c['responsavel'] == 'Jonathan') & (df_c['pago'] == 0)]
+    
+    if contas_j.empty:
+        st.write("✨ Nenhuma conta pendente.")
+    else:
+        for _, r in contas_j.iterrows():
+            st.markdown(f"""
+                <div class='expense-card'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <b>{r['descricao']}</b>
+                        <b style='color: #1F3A93;'>R$ {r['valor']:,.2f}</b>
+                    </div>
+                    <small>Vencimento: {r['vencimento']}</small>
+                </div>
+            """, unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            with c1: st.button("✅ Pagar", key=f"j_p_{r['id']}", on_click=marcar_pago, args=(r['id'],))
+            with c2: st.button("🗑️ Excluir", key=f"j_e_{r['id']}", on_click=excluir_conta, args=(r['id'],))
+
+with tab2:
+    st.markdown(f"### 📑 Histórico (R$ {total_pago:,.2f} pagos)")
+    df_pagas = df_c[df_c['pago'] == 1].copy()
+    if df_pagas.empty:
+        st.info("Nenhuma conta paga no histórico ainda.")
+    else:
+        st.dataframe(df_pagas[['responsavel', 'descricao', 'valor', 'vencimento']], use_container_width=True, hide_index=True)
+        
+        if st.button("Limpar Histórico Permanentemente"):
+            cursor.execute("DELETE FROM contas WHERE pago = 1")
+            conn.commit()
+            st.rerun()
+
+with tab3:
+    with st.form("add_family", clear_on_submit=True):
+        st.markdown("##### ➕ Novo Gasto")
+        resp = st.selectbox("Responsável", ["Fernanda", "Jonathan"])
+        desc = st.text_input("O que é?")
+        val = st.number_input("Valor R$", min_value=0.0)
+        dt = st.date_input("Vencimento")
+        if st.form_submit_button("SALVAR"):
+            data_formatada = dt.strftime("%d/%m")
+            cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", 
+                         (desc, val, data_formatada, resp))
+            conn.commit()
+            st.rerun()
