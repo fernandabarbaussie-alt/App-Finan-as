@@ -64,4 +64,62 @@ df_i = pd.read_sql("SELECT * FROM investimentos", conn)
 tab_dash, tab_lista, tab_novo, tab_config = st.tabs(["⚡ PAINEL", "📑 EXTRATO", "💎 LANÇAR", "⚙️ ADM"])
 
 with tab_dash:
-    c1,
+    c1, c2, c3 = st.columns(3)
+    total_f = df_c[(df_c['responsavel'] == 'Fernanda') & (df_c['pago'] == 0)]['valor'].sum()
+    total_j = df_c[(df_c['responsavel'] == 'Jonathan') & (df_c['pago'] == 0)]['valor'].sum()
+    total_invest = df_i['valor'].sum()
+    
+    c1.metric("FERNANDA", f"R$ {total_f:,.2f}")
+    c2.metric("JONATHAN", f"R$ {total_j:,.2f}")
+    c3.metric("PATRIMÔNIO", f"R$ {total_invest:,.2f}")
+
+    st.markdown("<br>#### Próximas Contas", unsafe_allow_html=True)
+    contas_p = df_c[df_c['pago'] == 0]
+    if contas_p.empty:
+        st.success("Tudo pago! ✨")
+    else:
+        for _, r in contas_p.iterrows():
+            st.markdown(f"""
+                <div class='expense-card'>
+                    <div>
+                        <span class='owner-tag'>{r['responsavel']}</span><br>
+                        <b>{r['descricao']}</b><br>
+                        <small>Vencimento: {r['vencimento']}</small>
+                    </div>
+                    <div style='color: #FF3366; font-weight: 800; font-size: 18px;'>R$ {r['valor']:,.2f}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+with tab_novo:
+    tipo = st.radio("Categoria", ["Conta", "Investimento"], horizontal=True)
+    with st.form("form_family", clear_on_submit=True):
+        if tipo == "Conta":
+            resp = st.selectbox("Responsável", ["Fernanda", "Jonathan"])
+            desc = st.text_input("Descrição")
+            val = st.number_input("Valor R$", min_value=0.0)
+            dt = st.date_input("Vencimento")
+        else:
+            desc = st.text_input("Descrição do Investimento")
+            val = st.number_input("Valor R$", min_value=0.0)
+            dt = st.date_input("Data do Aporte")
+            resp = "Geral"
+            
+        if st.form_submit_button("CONFIRMAR REGISTRO"):
+            if tipo == "Conta":
+                cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", 
+                             (desc, val, dt.strftime("%d/%m"), resp))
+            else:
+                cursor.execute("INSERT INTO investimentos (descricao, valor, data) VALUES (?, ?, ?)", 
+                             (desc, val, dt.strftime("%d/%m")))
+            conn.commit()
+            st.balloons()
+            st.rerun()
+
+with tab_lista:
+    st.write("**Histórico de Contas**")
+    st.dataframe(df_c[['responsavel', 'descricao', 'valor', 'vencimento', 'pago']], use_container_width=True, hide_index=True)
+
+with tab_config:
+    if st.button("Sair / Bloquear"):
+        st.session_state["autenticado"] = False
+        st.rerun()
