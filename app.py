@@ -5,99 +5,73 @@ import datetime
 import base64
 from dateutil.relativedelta import relativedelta
 import plotly.express as px
-from fpdf import FPDF
 
 # --- CONFIGURAÇÃO ---
 SENHA_ACESSO = "1234" 
 st.set_page_config(page_title="FamilyBank", page_icon="💍", layout="wide")
 
-# --- UI/UX ALTO CONTRASTE (SEM VERDE) ---
+# --- UI/UX FOCO TOTAL EM CELULAR (VERTICAL) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
     html, body, [class*="css"] { font-family: 'Roboto', sans-serif; background-color: #FFFFFF !important; color: #000000 !important; }
     header, footer, #MainMenu {visibility: hidden;}
-    .block-container {padding-top: 1rem; max-width: 600px; margin: auto;}
-    .section-title { color: #001f3f; font-weight: 900; font-size: 24px; margin-top: 20px; border-bottom: 4px solid #001f3f; width: 100%; padding-bottom: 5px; margin-bottom: 15px;}
-    .expense-card { background: #F9F9F9; border-radius: 10px; padding: 15px; margin-bottom: 8px; border: 2px solid #000000;}
-    .card-desc { font-size: 18px; font-weight: 700; color: #000000; }
+    .block-container {padding: 1rem; max-width: 500px; margin: auto;}
+    .section-title { color: #001f3f; font-weight: 900; font-size: 22px; margin-top: 15px; border-bottom: 3px solid #001f3f; padding-bottom: 5px;}
+    .expense-card { background: #F9F9F9; border-radius: 10px; padding: 15px; margin-bottom: 5px; border: 2px solid #000000;}
     .card-price { font-size: 20px; font-weight: 900; color: #D32F2F; }
-    .stTabs [data-baseweb="tab-list"] { background-color: #001f3f; border-radius: 10px; padding: 5px; }
-    .stTabs [data-baseweb="tab"] { color: #FFFFFF !important; font-weight: bold; }
-    .stTabs [aria-selected="true"] { background-color: #334e68 !important; border-radius: 8px; }
     
-    /* Botões Empilhados e Maiores */
+    /* BOTÕES VERTICAIS (UM ABAIXO DO OUTRO) */
     .stButton>button { 
         border: 2px solid #000000; 
         border-radius: 8px; 
         font-weight: 900; 
-        height: 3.8rem; 
+        height: 3.5rem; 
         background-color: #FFFFFF; 
         color: #000000; 
         box-shadow: 3px 3px 0px #000000; 
-        width: 100%;
-        margin-bottom: 10px; /* Espaço entre botões empilhados */
+        width: 100% !important; 
+        display: block;
+        margin-bottom: 10px !important;
     }
-    input, select { border: 2px solid #000000 !important; border-radius: 8px !important; }
+    .stTabs [data-baseweb="tab-list"] { background-color: #001f3f; border-radius: 10px; padding: 5px; width: 100%;}
+    .stTabs [data-baseweb="tab"] { color: #FFFFFF !important; font-size: 12px;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIN ---
-if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
-if not st.session_state["autenticado"]:
-    st.markdown("<h2 style='text-align: center; color: #001f3f; font-weight: 900;'>🔐 FamilyBank</h2>", unsafe_allow_html=True)
-    senha = st.text_input("Senha", type="password")
-    if st.button("ENTRAR NO PAINEL"):
-        if senha == SENHA_ACESSO:
-            st.session_state["autenticado"] = True
-            st.rerun()
-    st.stop()
-
-# --- BANCO DE DADOS (v11) ---
-conn = sqlite3.connect("familybank_v11.db", check_same_thread=False)
+# --- BANCO DE DADOS (v12) ---
+conn = sqlite3.connect("familybank_v12.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, categoria TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT, data_pagamento TEXT, comprovante TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, categoria TEXT, valor REAL, data TEXT)")
-cursor.execute("CREATE TABLE IF NOT EXISTS metas (id INTEGER PRIMARY KEY AUTOINCREMENT, objetivo TEXT, valor_alvo REAL, valor_atual REAL)")
 conn.commit()
 
-# --- CARGA DE DADOS ---
+# --- DADOS ---
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 df_i = pd.read_sql("SELECT * FROM investimentos", conn)
-df_m = pd.read_sql("SELECT * FROM metas", conn)
-
 hoje = datetime.date.today()
 mes_atual = hoje.strftime("%m")
-t_saidas_mes = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]['valor'].sum()
-t_investido = df_i['valor'].sum()
 
 st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["⚡ PAINEL", "🎯 METAS", "📊 DASHBOARD", "📈 INVEST", "🔮 PROJEÇÃO", "➕ NOVO"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["⚡ PAINEL", "📊 DASH", "📈 INVEST", "🔮 PROJ.", "➕ NOVO"])
 
 with tab1:
-    st.markdown(f"""<div style="background-color:#000;padding:15px;border-radius:12px;color:white;text-align:center;border:2px solid #001f3f;margin-bottom:10px;"><div style="display:flex;justify-content:space-around;"><div><small>A PAGAR</small><br><b style="font-size:22px;">R$ {t_saidas_mes:,.2f}</b></div><div style="border-left:1px solid #333;"></div><div><small>PATRIMÔNIO</small><br><b style="font-size:22px;color:#94a3b8;">R$ {t_investido:,.2f}</b></div></div></div>""", unsafe_allow_html=True)
-    
+    t_mes = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]['valor'].sum()
+    st.markdown(f"<div style='background:#000;color:#fff;padding:10px;border-radius:10px;text-align:center;'><b>PENDENTE NO MÊS</b><br><span style='font-size:20px;'>R$ {t_mes:,.2f}</span></div>", unsafe_allow_html=True)
+
     for resp in ["Fernanda", "Jonathan"]:
         st.markdown(f"<div class='section-title'>{resp.upper()}</div>", unsafe_allow_html=True)
+        # SÓ MOSTRA O MÊS ATUAL NO PAINEL
         df_p = df_c[(df_c['responsavel'] == resp) & (df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]
         
-        if df_p.empty: 
-            st.write("✓ Tudo em dia este mês.")
+        if df_p.empty: st.write("✓ Tudo em dia.")
         else:
             for _, r in df_p.iterrows():
-                st.markdown(f"""
-                    <div class='expense-card'>
-                        <div style='display:flex;justify-content:space-between;'>
-                            <span class='card-desc'>{r['descricao']}</span>
-                            <span class='card-price'>R$ {r['valor']:,.2f}</span>
-                        </div>
-                        <small>Vencimento: {r['vencimento']}</small>
-                    </div>
-                """, unsafe_allow_html=True)
+                st.markdown(f"<div class='expense-card'><b>{r['descricao']}</b><br><span class='card-price'>R$ {r['valor']:,.2f}</span><br><small>Venc: {r['vencimento']}</small></div>", unsafe_allow_html=True)
                 
-                # BOTÕES EMPILHADOS PARA CELULAR
-                comp = st.file_uploader("Comprovante", type=['png','jpg'], key=f"f_{r['id']}")
+                # COMPROVANTE E BOTÕES UM ABAIXO DO OUTRO
+                comp = st.file_uploader("Subir Comprovante", type=['png','jpg'], key=f"f_{r['id']}")
                 
                 if st.button("LIQUIDADO ✅", key=f"b_{r['id']}"):
                     img = base64.b64encode(comp.read()).decode() if comp else ""
@@ -109,8 +83,33 @@ with tab1:
                     cursor.execute("DELETE FROM contas WHERE id = ?", (r['id'],))
                     conn.commit()
                     st.rerun()
-                
-                st.markdown("---")
 
-# ... (restante das abas mantido conforme v11) ...
+with tab4:
+    st.markdown("<div class='section-title'>PROJEÇÃO (PARCELAS)</div>", unsafe_allow_html=True)
+    for i in range(1, 7):
+        data_f = hoje + relativedelta(months=i)
+        mes_f = data_f.strftime("%m")
+        df_futuro = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_f}"))]
+        if not df_futuro.empty:
+            with st.expander(f"📅 {data_f.strftime('%B/%Y').upper()}"):
+                for _, fut in df_futuro.iterrows():
+                    st.write(f"{fut['descricao']} - R$ {fut['valor']:.2f}")
+
+with tab5:
+    with st.form("add_v12", clear_on_submit=True):
+        tipo = st.radio("Tipo", ["Saída", "Investimento"], horizontal=True)
+        des = st.text_input("Descrição")
+        val = st.number_input("Valor")
+        dat = st.date_input("Data de Vencimento")
+        res = st.selectbox("Quem?", ["Fernanda", "Jonathan"])
+        rep = st.number_input("Repetir (Parcelas)", min_value=1, value=1)
+        if st.form_submit_button("REGISTRAR"):
+            if tipo == "Saída":
+                for i in range(int(rep)):
+                    v_p = dat + relativedelta(months=i) # MANTÉM O DIA
+                    # PARCELA INICIANDO EM (0)
+                    d_parc = f"{des} ({i})" if rep > 1 else des
+                    cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (d_parc, val, v_p.strftime("%d/%m"), res))
+            conn.commit()
+            st.rerun()
 
