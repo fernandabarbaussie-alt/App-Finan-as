@@ -3,160 +3,116 @@ import sqlite3
 import pandas as pd
 import datetime
 
-# --- CONFIGURAÇÃO DE PÁGINA ---
-st.set_page_config(
-    page_title="Finanças Pro", 
-    page_icon="💸", 
-    layout="wide", 
-    initial_sidebar_state="collapsed"
-)
+# --- CONFIGURAÇÃO PREMIUM ---
+st.set_page_config(page_title="Finanças Elite", page_icon="💎", layout="wide")
 
-# --- CSS AVANÇADO PARA LOOK & FEEL PROFISSIONAL ---
+# --- CSS DE ALTA COSTURA (UI/UX) ---
 st.markdown("""
     <style>
-    /* Fundo e Fonte */
-    .main { background-color: #0E1117; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
     
-    /* Esconder elementos desnecessários */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-
-    /* Estilização dos Cards de Métricas */
-    div[data-testid="stMetric"] {
-        background-color: #161B22;
-        border: 1px solid #30363D;
-        padding: 15px;
-        border-radius: 15px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.3);
+    html, body, [class*="css"]  {
+        font-family: 'Inter', sans-serif;
+        background-color: #050505;
     }
 
-    /* Estilo das Abas (Tabs) */
+    /* Remover barras e menus padrão */
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .block-container {padding-top: 2rem;}
+
+    /* Cards de KPI Estilizados */
+    .kpi-card {
+        background: linear-gradient(145deg, #1e1e1e, #141414);
+        border: 1px solid #333;
+        border-radius: 20px;
+        padding: 25px;
+        text-align: center;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    }
+
+    /* Estilo das Abas Modernas */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        justify-content: space-around;
-        background-color: #0E1117;
-        padding: 10px;
-        position: sticky;
-        top: 0;
-        z-index: 999;
+        gap: 15px;
+        justify-content: center;
+        background-color: transparent;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 45px;
-        border-radius: 20px;
-        background-color: #21262D;
-        color: #8B949E;
-        border: none;
-        padding: 0 20px;
+        height: 40px;
+        border-radius: 30px;
+        background-color: #1a1a1a;
+        color: #888;
+        border: 1px solid #333;
+        padding: 0 25px;
+        transition: 0.3s;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #238636 !important; /* Verde Sucesso */
-        color: white !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        transform: scale(1.05);
     }
 
-    /* Estilo dos Botões */
-    .stButton>button {
-        width: 100%;
-        border-radius: 10px;
-        height: 3em;
-        background-color: #238636;
-        color: white;
-        border: none;
-        font-weight: bold;
-    }
-    
-    /* Cards de Transações */
-    .transaction-card {
-        background-color: #161B22;
+    /* Lista de Transações Neumórfica */
+    .transaction-item {
+        background: #111;
+        border-radius: 15px;
         padding: 15px;
-        border-radius: 12px;
-        margin-bottom: 10px;
-        border-left: 5px solid #238636;
+        margin-bottom: 12px;
+        border: 1px solid #222;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BANCO DE DADOS ---
+# --- LOGICA DE DADOS ---
 conn = sqlite3.connect("financas.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0)")
-cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, data TEXT, categoria TEXT)")
+cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, categoria TEXT)")
 conn.commit()
 
-# --- TÍTULO ---
-st.markdown("<h2 style='text-align: center; color: #F0F6FC; margin-bottom: 20px;'>💰 My Wallet Pro</h2>", unsafe_allow_html=True)
+# --- INTERFACE ---
+st.markdown("<h1 style='text-align: center; color: white; letter-spacing: -1px;'>ELITE <span style='color: #888;'>FINANCE</span></h1>", unsafe_allow_html=True)
 
-# --- ABAS ---
-tab_home, tab_contas, tab_invest, tab_add = st.tabs(["🏠 Home", "📑 Contas", "📈 Invest", "➕ Novo"])
+tab1, tab2, tab3 = st.tabs(["Dashboard", "Carteira", "Lançar"])
 
-with tab_home:
+with tab1:
     df_c = pd.read_sql("SELECT * FROM contas", conn)
-    pendente = df_c[df_c['pago'] == 0]['valor'].sum()
-    pago = df_c[df_c['pago'] == 1]['valor'].sum()
+    total_pendente = df_c[df_c['pago'] == 0]['valor'].sum()
     
-    st.markdown("### Visão Geral")
-    c1, c2 = st.columns(2)
-    c1.metric("A PAGAR", f"R$ {pendente:.2f}")
-    c2.metric("PAGO", f"R$ {pago:.2f}")
-    
-    st.markdown("---")
-    st.markdown("#### Próximos Vencimentos")
-    hoje = datetime.date.today().strftime("%d/%m")
-    vencendo = df_c[(df_c['vencimento'] == hoje) & (df_c['pago'] == 0)]
-    if not vencendo.empty:
-        for _, r in vencendo.iterrows():
-            st.error(f"⚠️ **{r['descricao']}** vence hoje!")
-    else:
-        st.success("Tudo em dia para hoje! 🎉")
+    # KPIs com HTML para controle total
+    col1, col2 = st.columns(2)
+    col1.markdown(f"""<div class='kpi-card'><p style='color: #888; font-size: 14px;'>DEBITO PENDENTE</p><h2 style='color: white;'>R$ {total_pendente:,.2f}</h2></div>""", unsafe_allow_html=True)
+    col2.markdown(f"""<div class='kpi-card'><p style='color: #888; font-size: 14px;'>PATRIMÔNIO</p><h2 style='color: #00ff88;'>R$ {pd.read_sql("SELECT SUM(valor) FROM investimentos", conn).iloc[0,0] or 0:,.2f}</h2></div>""", unsafe_allow_html=True)
 
-with tab_contas:
-    mes = st.select_slider("Mês de Referência", options=[f"{i:02d}" for i in range(1, 13)], value=datetime.date.today().strftime("%02m"))
-    
-    df_c['mes'] = df_c['vencimento'].str.split("/").str[1]
-    df_mes = df_c[df_c['mes'] == mes]
-    
-    for _, row in df_mes.iterrows():
-        with st.container():
-            # Criando um card visual via Markdown + HTML
-            color = "#238636" if row['pago'] == 1 else "#DA3633"
-            st.markdown(f"""
-                <div style="background-color: #161B22; padding: 12px; border-radius: 10px; border-left: 5px solid {color}; margin-bottom: 5px;">
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: white; font-weight: bold;">{row['descricao']}</span>
-                        <span style="color: white;">R$ {row['valor']:.2f}</span>
-                    </div>
-                    <div style="color: #8B949E; font-size: 0.8em;">Vence em: {row['vencimento']}</div>
+    st.markdown("<br><h4 style='color: white;'>Próximos Vencimentos</h4>", unsafe_allow_html=True)
+    for _, row in df_c[df_c['pago'] == 0].iterrows():
+        st.markdown(f"""
+            <div class='transaction-item'>
+                <div>
+                    <span style='color: white; font-weight: bold;'>{row['descricao']}</span><br>
+                    <span style='color: #555; font-size: 12px;'>Vence {row['vencimento']}</span>
                 </div>
-            """, unsafe_allow_html=True)
-            
-            col_b1, col_b2 = st.columns(2)
-            if row['pago'] == 0:
-                if col_b1.button("✅ Pagar", key=f"p_{row['id']}"):
-                    cursor.execute("UPDATE contas SET pago=1 WHERE id=?", (row['id'],))
-                    conn.commit()
-                    st.rerun()
-            if col_b2.button("🗑️", key=f"d_{row['id']}"):
-                cursor.execute("DELETE FROM contas WHERE id=?", (row['id'],))
-                conn.commit()
-                st.rerun()
+                <div style='color: #ff4b4b; font-weight: bold;'>R$ {row['valor']:.2f}</div>
+            </div>
+        """, unsafe_allow_html=True)
 
-with tab_add:
-    st.markdown("### Novo Registro")
-    tipo = st.toggle("É um investimento?", value=False)
-    
-    with st.form("add_form", clear_on_submit=True):
-        nome = st.text_input("Nome / Descrição")
-        valor = st.number_input("Valor", min_value=0.0, format="%.2f")
-        data = st.date_input("Data", datetime.date.today())
-        
-        if st.form_submit_button("Salvar no Banco"):
-            if not tipo:
-                cursor.execute("INSERT INTO contas (descricao, valor, vencimento) VALUES (?, ?, ?)", 
-                             (nome, valor, data.strftime("%d/%m")))
+with tab3:
+    st.markdown("<div class='kpi-card'>", unsafe_allow_html=True)
+    with st.form("add_pro", clear_on_submit=True):
+        tipo = st.selectbox("Tipo", ["Conta", "Investimento"])
+        desc = st.text_input("O que é?")
+        vlr = st.number_input("Quanto?", min_value=0.0)
+        dt = st.date_input("Data")
+        if st.form_submit_button("REGISTRAR NA NUVEM"):
+            if tipo == "Conta":
+                cursor.execute("INSERT INTO contas (descricao, valor, vencimento) VALUES (?, ?, ?)", (desc, vlr, dt.strftime("%d/%m")))
             else:
-                cursor.execute("INSERT INTO investimentos (descricao, valor, data, categoria) VALUES (?, ?, ?, ?)", 
-                             (nome, valor, data.strftime("%d/%m"), "Geral"))
+                cursor.execute("INSERT INTO investimentos (descricao, valor, categoria) VALUES (?, ?, ?)", (desc, vlr, "Geral"))
             conn.commit()
-            st.balloons()
+            st.toast("Dados sincronizados com sucesso!", icon="☁️")
             st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
