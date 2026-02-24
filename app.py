@@ -33,6 +33,14 @@ st.markdown("""
     .stTabs [aria-selected="true"] { background-color: #2ECC71 !important; }
 
     .stButton>button { border-radius: 8px; font-weight: bold; width: 100%; }
+    
+    /* Estilo das Métricas de Resumo */
+    div[data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        border: 1px solid #DEDEDE;
+        border-radius: 12px;
+        padding: 10px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -69,74 +77,20 @@ st.markdown("<h1 style='text-align: center; color: #1F3A93; margin:0;'>Family<sp
 
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 
+# --- CÁLCULOS TOTAIS ---
+total_a_pagar = df_c[df_c['pago'] == 0]['valor'].sum()
+total_pago = df_c[df_c['pago'] == 1]['valor'].sum()
+
 tab1, tab2, tab3 = st.tabs(["⚡ PAINEL", "📑 HISTÓRICO", "➕ NOVO"])
 
 with tab1:
+    # Resumo Geral no Topo
+    c_res1, c_res2 = st.columns(2)
+    c_res1.metric("TOTAL A PAGAR", f"R$ {total_a_pagar:,.2f}")
+    c_res2.metric("TOTAL PAGO", f"R$ {total_pago:,.2f}", delta_color="normal")
+    
+    st.markdown("---")
+
     # --- SEÇÃO FERNANDA ---
     st.markdown("<div class='section-title'>FERNANDA</div>", unsafe_allow_html=True)
-    contas_f = df_c[(df_c['responsavel'] == 'Fernanda') & (df_c['pago'] == 0)]
-    
-    if contas_f.empty:
-        st.write("✨ Nenhuma conta pendente.")
-    else:
-        for _, r in contas_f.iterrows():
-            st.markdown(f"""
-                <div class='expense-card'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <b>{r['descricao']}</b>
-                        <b style='color: #1F3A93;'>R$ {r['valor']:,.2f}</b>
-                    </div>
-                    <small>Vencimento: {r['vencimento']}</small>
-                </div>
-            """, unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1: st.button("✅ Pagar", key=f"f_p_{r['id']}", on_click=marcar_pago, args=(r['id'],))
-            with c2: st.button("🗑️ Excluir", key=f"f_e_{r['id']}", on_click=excluir_conta, args=(r['id'],))
-
-    # --- SEÇÃO JONATHAN ---
-    st.markdown("<div class='section-title'>JONATHAN</div>", unsafe_allow_html=True)
-    contas_j = df_c[(df_c['responsavel'] == 'Jonathan') & (df_c['pago'] == 0)]
-    
-    if contas_j.empty:
-        st.write("✨ Nenhuma conta pendente.")
-    else:
-        for _, r in contas_j.iterrows():
-            st.markdown(f"""
-                <div class='expense-card'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <b>{r['descricao']}</b>
-                        <b style='color: #1F3A93;'>R$ {r['valor']:,.2f}</b>
-                    </div>
-                    <small>Vencimento: {r['vencimento']}</small>
-                </div>
-            """, unsafe_allow_html=True)
-            c1, c2 = st.columns(2)
-            with c1: st.button("✅ Pagar", key=f"j_p_{r['id']}", on_click=marcar_pago, args=(r['id'],))
-            with c2: st.button("🗑️ Excluir", key=f"j_e_{r['id']}", on_click=excluir_conta, args=(r['id'],))
-
-with tab2:
-    st.markdown("### 📑 Histórico (Pagas)")
-    df_pagas = df_c[df_c['pago'] == 1].copy()
-    if df_pagas.empty:
-        st.info("Nenhuma conta paga no histórico ainda.")
-    else:
-        st.dataframe(df_pagas[['responsavel', 'descricao', 'valor', 'vencimento']], use_container_width=True, hide_index=True)
-        if st.button("Limpar Histórico"):
-            cursor.execute("DELETE FROM contas WHERE pago = 1")
-            conn.commit()
-            st.rerun()
-
-with tab3:
-    with st.form("add_family", clear_on_submit=True):
-        st.markdown("##### ➕ Novo Gasto")
-        resp = st.selectbox("Responsável", ["Fernanda", "Jonathan"])
-        desc = st.text_input("O que é?")
-        val = st.number_input("Valor R$", min_value=0.0)
-        dt = st.date_input("Vencimento")
-        if st.form_submit_button("SALVAR"):
-            # Salva apenas dia/mês no banco
-            data_formatada = dt.strftime("%d/%m")
-            cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", 
-                         (desc, val, data_formatada, resp))
-            conn.commit()
-            st.rerun()
+    contas_f = df_c[(df
