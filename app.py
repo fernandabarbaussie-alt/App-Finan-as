@@ -35,6 +35,7 @@ st.markdown("""
         border-bottom: 4px solid #001f3f;
         width: 100%;
         padding-bottom: 5px;
+        margin-bottom: 15px;
     }
 
     .expense-card { 
@@ -63,7 +64,7 @@ st.markdown("""
         box-shadow: 3px 3px 0px #000000;
     }
     
-    input { border: 2px solid #000000 !important; border-radius: 8px !important; height: 3rem; }
+    input, select { border: 2px solid #000000 !important; border-radius: 8px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -93,7 +94,7 @@ cursor.execute("""
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS investimentos (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        descricao TEXT, valor REAL, data TEXT
+        descricao TEXT, categoria TEXT, valor REAL, data TEXT
     )
 """)
 conn.commit()
@@ -105,28 +106,28 @@ def acao_pagar(id_conta):
     conn.commit()
     st.rerun()
 
-def acao_excluir(id_conta, tabela="contas"):
-    cursor.execute(f"DELETE FROM {tabela} WHERE id = ?", (id_conta,))
+def acao_excluir(id_item, tabela="contas"):
+    cursor.execute(f"DELETE FROM {tabela} WHERE id = ?", (id_item,))
     conn.commit()
     st.rerun()
 
-# --- HEADER E RESUMO ---
-st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
-
+# --- CARREGAMENTO DE DADOS ---
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 df_i = pd.read_sql("SELECT * FROM investimentos", conn)
 
 total_a_pagar = df_c[df_c['pago'] == 0]['valor'].sum()
 total_investido = df_i['valor'].sum()
 
-# --- NAVEGAÇÃO ---
+# --- HEADER ---
+st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
+
 tab1, tab2, tab3, tab4 = st.tabs(["⚡ PAINEL", "📈 INVEST", "📑 HISTÓRICO", "➕ NOVO"])
 
 with tab1:
     st.markdown(f"""
     <div style="background-color: #000000; padding: 15px; border-radius: 12px; color: white; text-align: center; border: 2px solid #001f3f;">
         <div style="display: flex; justify-content: space-around;">
-            <div><small>FALTA PAGAR</small><br><b style="font-size: 22px; color: #FFFFFF;">R$ {total_a_pagar:,.2f}</b></div>
+            <div><small>A PAGAR</small><br><b style="font-size: 22px; color: #FFFFFF;">R$ {total_a_pagar:,.2f}</b></div>
             <div style="border-left: 1px solid #333;"></div>
             <div><small>PATRIMÔNIO</small><br><b style="font-size: 22px; color: #94a3b8;">R$ {total_investido:,.2f}</b></div>
         </div>
@@ -136,7 +137,6 @@ with tab1:
     for responsavel in ["Fernanda", "Jonathan"]:
         st.markdown(f"<div class='section-title'>{responsavel.upper()}</div>", unsafe_allow_html=True)
         df_resp = df_c[(df_c['responsavel'] == responsavel) & (df_c['pago'] == 0)]
-        
         if df_resp.empty:
             st.write("✓ Tudo em dia.")
         else:
@@ -155,33 +155,32 @@ with tab1:
                 c2.button("EXCLUIR", key=f"e_{r['id']}", on_click=acao_excluir, args=(r['id'],))
 
 with tab2:
-    st.markdown("<div class='section-title'>PATRIMÔNIO DA FAMÍLIA</div>", unsafe_allow_html=True)
-    st.metric("Total Investido", f"R$ {total_investido:,.2f}")
+    st.markdown("<div class='section-title'>MEUS INVESTIMENTOS</div>", unsafe_allow_html=True)
+    st.metric("Total Acumulado", f"R$ {total_investido:,.2f}")
     
-    if df_i.empty:
-        st.info("Nenhum investimento registrado.")
-    else:
-        for _, inv in df_i.iterrows():
-            st.markdown(f"""
-                <div class='expense-card' style='border-left: 5px solid #001f3f;'>
-                    <div style='display: flex; justify-content: space-between;'>
-                        <b>{inv['descricao']}</b>
-                        <b style='color: #001f3f;'>R$ {inv['valor']:,.2f}</b>
-                    </div>
-                    <small>Data: {inv['data']}</small>
-                </div>
-            """, unsafe_allow_html=True)
-            if st.button("Remover Investimento", key=f"del_inv_{inv['id']}"):
-                acao_excluir(inv['id'], "investimentos")
+    categorias = ["Renda Fixa", "Renda Variável", "Tesouro Direto", "Cripto", "COE", "Previdência Privada", "Outros"]
+    
+    for cat in categorias:
+        df_cat = df_i[df_i['categoria'] == cat]
+        if not df_cat.empty:
+            soma_cat = df_cat['valor'].sum()
+            with st.expander(f"📁 {cat.upper()} - R$ {soma_cat:,.2f}"):
+                for _, inv in df_cat.iterrows():
+                    st.markdown(f"""
+                        <div style='border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between;'>
+                            <span><b>{inv['descricao']}</b><br><small>{inv['data']}</small></span>
+                            <span style='color: #001f3f; font-weight: 900;'>R$ {inv['valor']:,.2f}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    st.button("Excluir", key=f"del_inv_{inv['id']}", on_click=acao_excluir, args=(inv['id'], "investimentos"))
 
 with tab3:
-    st.markdown("<div class='section-title'>HISTÓRICO DE PAGOS</div>", unsafe_allow_html=True)
-    pesquisa = st.text_input("🔍 Buscar no histórico...")
+    st.markdown("<div class='section-title'>CONTAS PAGAS</div>", unsafe_allow_html=True)
+    pesquisa = st.text_input("🔍 Pesquisar conta ou pessoa...")
     df_historico = df_c[df_c['pago'] == 1].copy()
-    
     if pesquisa:
         df_historico = df_historico[df_historico['descricao'].str.contains(pesquisa, case=False) | df_historico['responsavel'].str.contains(pesquisa, case=False)]
-
+    
     if not df_historico.empty:
         df_show = df_historico[['responsavel', 'descricao', 'valor', 'vencimento', 'data_pagamento']].rename(columns={
             'responsavel': 'Quem', 'descricao': 'Conta', 'valor': 'R$', 'vencimento': 'Venc.', 'data_pagamento': 'Pago em'
@@ -189,22 +188,25 @@ with tab3:
         st.table(df_show)
 
 with tab4:
-    tipo = st.radio("O que registrar?", ["Conta", "Investimento"], horizontal=True)
+    tipo = st.radio("O que deseja registrar?", ["Conta", "Investimento"], horizontal=True)
     with st.form("add_form", clear_on_submit=True):
         if tipo == "Conta":
             res = st.selectbox("Responsável", ["Fernanda", "Jonathan"])
-            des = st.text_input("Nome da Conta")
+            cat_inv = "N/A"
+            des = st.text_input("Nome da Conta (Ex: Aluguel)")
         else:
-            des = st.text_input("Nome do Investimento")
+            cat_inv = st.selectbox("Tipo de Investimento", ["Renda Fixa", "Renda Variável", "Tesouro Direto", "Cripto", "COE", "Previdência Privada", "Outros"])
+            des = st.text_input("Nome do Título/Ativo (Ex: CDB Banco X)")
             res = "Geral"
             
         val = st.number_input("Valor R$", min_value=0.0, step=0.01)
         dat = st.date_input("Data")
         
-        if st.form_submit_button("REGISTRAR"):
+        if st.form_submit_button("SALVAR REGISTRO"):
             if tipo == "Conta":
                 cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (des, val, dat.strftime("%d/%m"), res))
             else:
-                cursor.execute("INSERT INTO investimentos (descricao, valor, data) VALUES (?, ?, ?)", (des, val, dat.strftime("%d/%m")))
+                cursor.execute("INSERT INTO investimentos (descricao, categoria, valor, data) VALUES (?, ?, ?, ?)", (des, cat_inv, val, dat.strftime("%d/%m/%Y")))
             conn.commit()
+            st.success("Registrado com sucesso!")
             st.rerun()
