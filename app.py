@@ -4,13 +4,12 @@ import pandas as pd
 import datetime
 import base64
 from dateutil.relativedelta import relativedelta
-from io import BytesIO
 
 # --- CONFIGURAÇÃO ---
 SENHA_ACESSO = "1234" 
 st.set_page_config(page_title="FamilyBank", page_icon="💍", layout="wide")
 
-# --- UI/UX ---
+# --- UI/UX ALTO CONTRASTE ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
@@ -24,7 +23,6 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { color: #FFFFFF !important; font-weight: bold; }
     .stButton>button { border: 2px solid #000000; border-radius: 8px; font-weight: 900; height: 3.5rem; background-color: #FFFFFF; color: #000000; box-shadow: 3px 3px 0px #000000; width: 100%;}
     input, select { border: 2px solid #000000 !important; border-radius: 8px !important; }
-    .reserva-box { background: #E3F2FD; border: 2px dashed #1976D2; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -39,107 +37,78 @@ if not st.session_state["autenticado"]:
             st.rerun()
     st.stop()
 
-# --- BANCO DE DADOS (v7) ---
-conn = sqlite3.connect("familybank_v7.db", check_same_thread=False)
+# --- BANCO DE DADOS ---
+conn = sqlite3.connect("familybank_v8.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT, data_pagamento TEXT, comprovante TEXT, mes_referencia INTEGER, ano_referencia INTEGER)")
+cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT, data_pagamento TEXT, comprovante TEXT, mes_ref TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, categoria TEXT, valor REAL, data TEXT)")
 conn.commit()
 
 # --- DADOS ---
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 df_i = pd.read_sql("SELECT * FROM investimentos", conn)
-t_saidas = df_c[df_c['pago'] == 0]['valor'].sum()
+
+# Filtro de Mês Atual para o Painel
+mes_atual = datetime.date.today().strftime("%m")
+t_saidas_mes = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]['valor'].sum()
 t_investido = df_i['valor'].sum()
 
 st.markdown("<h1 style='text-align: center; color: #001f3f; font-weight: 900; margin:0;'>FamilyBank</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["⚡ PAINEL", "📈 INVEST/RESERVA", "🔮 PROJEÇÃO", "📑 HISTÓRICO", "➕ NOVO"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["⚡ PAINEL", "📈 INVEST", "🔮 PROJEÇÃO", "📑 HISTÓRICO", "➕ NOVO"])
 
 with tab1:
-    st.markdown(f"<div style='background-color:#000;padding:15px;border-radius:12px;color:white;text-align:center;border:2px solid #001f3f;margin-bottom:10px;'><div style='display:flex;justify-content:space-around;'><div><small>A PAGAR</small><br><b style='font-size:22px;'>R$ {t_saidas:,.2f}</b></div><div style='border-left:1px solid #333;'></div><div><small>PATRIMÔNIO</small><br><b style='font-size:22px;color:#94a3b8;'>R$ {t_investido:,.2f}</b></div></div></div>", unsafe_allow_html=True)
+    st.markdown(f"""<div style="background-color:#000;padding:15px;border-radius:12px;color:white;text-align:center;border:2px solid #001f3f;margin-bottom:10px;"><div style="display:flex;justify-content:space-around;"><div><small>SAÍDAS DO MÊS</small><br><b style="font-size:22px;">R$ {t_saidas_mes:,.2f}</b></div><div style="border-left:1px solid #333;"></div><div><small>PATRIMÔNIO</small><br><b style="font-size:22px;color:#94a3b8;">R$ {t_investido:,.2f}</b></div></div></div>""", unsafe_allow_html=True)
     
     for resp in ["Fernanda", "Jonathan"]:
         st.markdown(f"<div class='section-title'>{resp.upper()}</div>", unsafe_allow_html=True)
-        df_p = df_c[(df_c['responsavel'] == resp) & (df_c['pago'] == 0)]
-        if df_p.empty: st.write("✓ Sem pendências.")
+        # MOSTRA APENAS O QUE VENCE NO MÊS ATUAL
+        df_p = df_c[(df_c['responsavel'] == resp) & (df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]
+        
+        if df_p.empty: st.write("✓ Tudo em dia este mês.")
         else:
             for _, r in df_p.iterrows():
-                with st.container():
-                    st.markdown(f"<div class='expense-card'><div style='display:flex;justify-content:space-between;'><span class='card-desc'>{r['descricao']}</span><span class='card-price'>R$ {r['valor']:,.2f}</span></div><small>Venc: {r['vencimento']}</small></div>", unsafe_allow_html=True)
-                    c1, c2 = st.columns(2)
-                    # Upload de Comprovante ao Liquidar
-                    foto = c1.file_uploader("Recibo", type=['png','jpg','pdf'], key=f"f_{r['id']}")
-                    if c1.button("LIQUIDAR ✅", key=f"b_{r['id']}"):
-                        img_str = ""
-                        if foto:
-                            img_str = base64.b64encode(foto.read()).decode()
-                        cursor.execute("UPDATE contas SET pago = 1, data_pagamento = ?, comprovante = ? WHERE id = ?", (datetime.date.today().strftime("%d/%m/%Y"), img_str, r['id']))
-                        conn.commit()
-                        st.rerun()
-                    if c2.button("REMOVER 🗑️", key=f"del_{r['id']}"):
-                        cursor.execute("DELETE FROM contas WHERE id = ?", (r['id'],))
-                        conn.commit()
-                        st.rerun()
-
-with tab2:
-    st.markdown("<div class='section-title'>RESERVA E METAS</div>", unsafe_allow_html=True)
-    # Cálculo de meses de reserva (média de gastos dos últimos meses)
-    gastos_medios = df_c[df_c['pago']==1]['valor'].sum() / 3 if not df_c[df_c['pago']==1].empty else 1
-    meses_reserva = t_investido / gastos_medios if gastos_medios > 0 else 0
-    
-    st.markdown(f"""<div class='reserva-box'><h3>Sua reserva cobre</h3><h1>{meses_reserva:.1f} meses</h1><p>do seu padrão de vida atual</p></div>""", unsafe_allow_html=True)
-    
-    cats = ["Renda Fixa", "Renda Variável", "Tesouro Direto", "Cripto", "COE", "Previdência Privada", "Outros"]
-    for cat in cats:
-        df_cat = df_i[df_i['categoria'] == cat]
-        if not df_cat.empty:
-            with st.expander(f"📁 {cat.upper()} - R$ {df_cat['valor'].sum():,.2f}"):
-                for _, inv in df_cat.iterrows():
-                    st.write(f"**{inv['descricao']}** - R$ {inv['valor']:,.2f}")
-                    if st.button("Remover", key=f"di_{inv['id']}"):
-                        cursor.execute("DELETE FROM investimentos WHERE id = ?", (inv['id'],))
-                        conn.commit()
-                        st.rerun()
+                st.markdown(f"<div class='expense-card'><div style='display:flex;justify-content:space-between;'><span class='card-desc'>{r['descricao']}</span><span class='card-price'>R$ {r['valor']:,.2f}</span></div><small>Vencimento: {r['vencimento']}</small></div>", unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                foto = c1.file_uploader("Recibo", type=['png','jpg','pdf'], key=f"f_{r['id']}")
+                if c1.button("LIQUIDADO ✅", key=f"b_{r['id']}"):
+                    img_str = base64.b64encode(foto.read()).decode() if foto else ""
+                    cursor.execute("UPDATE contas SET pago = 1, data_pagamento = ?, comprovante = ? WHERE id = ?", (datetime.date.today().strftime("%d/%m/%Y"), img_str, r['id']))
+                    conn.commit()
+                    st.rerun()
+                if c2.button("REMOVER 🗑️", key=f"del_{r['id']}"):
+                    cursor.execute("DELETE FROM contas WHERE id = ?", (r['id'],))
+                    conn.commit()
+                    st.rerun()
 
 with tab3:
-    st.markdown("<div class='section-title'>PROJEÇÃO FUTURA (6 MESES)</div>", unsafe_allow_html=True)
-    # Lógica de projeção baseada nos vencimentos DD/MM
+    st.markdown("<div class='section-title'>PROJEÇÃO FUTURA</div>", unsafe_allow_html=True)
     hoje = datetime.date.today()
-    projeções = []
-    for i in range(6):
-        mes_f = hoje + relativedelta(months=i)
-        mes_str = mes_f.strftime("%m")
-        total_mes = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_str}"))]['valor'].sum()
-        projeções.append({"Mês": mes_f.strftime("%B/%Y"), "Total Previsto": f"R$ {total_mes:,.2f}"})
-    st.table(pd.DataFrame(projeções))
-
-with tab4:
-    st.markdown("<div class='section-title'>HISTÓRICO E COMPROVANTES</div>", unsafe_allow_html=True)
-    df_h = df_c[df_c['pago'] == 1].copy()
-    if not df_h.empty:
-        for _, h in df_h.iterrows():
-            with st.expander(f"{h['vencimento']} - {h['descricao']} (R$ {h['valor']:.2f})"):
-                st.write(f"Pago por: {h['responsavel']} em {h['data_pagamento']}")
-                if h['comprovante']:
-                    st.image(base64.b64decode(h['comprovante']), caption="Comprovante de Pagamento", use_container_width=True)
+    for i in range(1, 7): # Próximos 6 meses (excluindo o atual)
+        data_f = hoje + relativedelta(months=i)
+        mes_f_str = data_f.strftime("%m")
+        df_futuro = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_f_str}"))]
+        if not df_futuro.empty:
+            with st.expander(f"📅 {data_f.strftime('%B/%Y').upper()} - Total: R$ {df_futuro['valor'].sum():,.2f}"):
+                for _, fut in df_futuro.iterrows():
+                    st.write(f"**{fut['responsavel']}**: {fut['descricao']} - R$ {fut['valor']:,.2f} ({fut['vencimento']})")
 
 with tab5:
-    tipo = st.radio("O que registrar?", ["Saída", "Investimento"], horizontal=True)
+    tipo = st.radio("Registrar:", ["Saída", "Investimento"], horizontal=True)
     with st.form("add_form", clear_on_submit=True):
         if tipo == "Saída":
             res = st.selectbox("Responsável", ["Fernanda", "Jonathan"])
             des = st.text_input("Descrição")
             rep = st.number_input("Repetir por meses?", min_value=1, value=1)
         else:
-            cat_inv = st.selectbox("Tipo de Ativo", cats)
-            des, res, rep = st.text_input("Nome do Ativo"), "Geral", 1
+            cat_inv = st.selectbox("Tipo:", ["Renda Fixa", "Renda Variável", "Tesouro Direto", "Cripto", "COE", "Previdência Privada", "Outros"])
+            des, res, rep = st.text_input("Título"), "Geral", 1
         val = st.number_input("Valor R$", min_value=0.0)
-        dat = st.date_input("Data Inicial")
+        dat = st.date_input("Data de Vencimento")
         if st.form_submit_button("REGISTRAR"):
             if tipo == "Saída":
                 for i in range(int(rep)):
-                    v_p = dat + relativedelta(months=i)
+                    v_p = dat + relativedelta(months=i) # MANTÉM O MESMO DIA, MUDA O MÊS
                     cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (des, val, v_p.strftime("%d/%m"), res))
             else:
                 cursor.execute("INSERT INTO investimentos (descricao, categoria, valor, data) VALUES (?, ?, ?, ?)", (des, cat_inv, val, dat.strftime("%d/%m")))
