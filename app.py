@@ -38,9 +38,9 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # --- BANCO DE DADOS ---
-conn = sqlite3.connect("familybank_v8.db", check_same_thread=False)
+conn = sqlite3.connect("familybank_v9.db", check_same_thread=False)
 cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT, data_pagamento TEXT, comprovante TEXT, mes_ref TEXT)")
+cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0, responsavel TEXT, data_pagamento TEXT, comprovante TEXT)")
 cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, categoria TEXT, valor REAL, data TEXT)")
 conn.commit()
 
@@ -48,7 +48,6 @@ conn.commit()
 df_c = pd.read_sql("SELECT * FROM contas", conn)
 df_i = pd.read_sql("SELECT * FROM investimentos", conn)
 
-# Filtro de Mês Atual para o Painel
 mes_atual = datetime.date.today().strftime("%m")
 t_saidas_mes = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]['valor'].sum()
 t_investido = df_i['valor'].sum()
@@ -62,7 +61,6 @@ with tab1:
     
     for resp in ["Fernanda", "Jonathan"]:
         st.markdown(f"<div class='section-title'>{resp.upper()}</div>", unsafe_allow_html=True)
-        # MOSTRA APENAS O QUE VENCE NO MÊS ATUAL
         df_p = df_c[(df_c['responsavel'] == resp) & (df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_atual}"))]
         
         if df_p.empty: st.write("✓ Tudo em dia este mês.")
@@ -70,9 +68,9 @@ with tab1:
             for _, r in df_p.iterrows():
                 st.markdown(f"<div class='expense-card'><div style='display:flex;justify-content:space-between;'><span class='card-desc'>{r['descricao']}</span><span class='card-price'>R$ {r['valor']:,.2f}</span></div><small>Vencimento: {r['vencimento']}</small></div>", unsafe_allow_html=True)
                 c1, c2 = st.columns(2)
-                foto = c1.file_uploader("Recibo", type=['png','jpg','pdf'], key=f"f_{r['id']}")
+                arquivo_comp = c1.file_uploader("Comprovante", type=['png','jpg','pdf'], key=f"f_{r['id']}")
                 if c1.button("LIQUIDADO ✅", key=f"b_{r['id']}"):
-                    img_str = base64.b64encode(foto.read()).decode() if foto else ""
+                    img_str = base64.b64encode(arquivo_comp.read()).decode() if arquivo_comp else ""
                     cursor.execute("UPDATE contas SET pago = 1, data_pagamento = ?, comprovante = ? WHERE id = ?", (datetime.date.today().strftime("%d/%m/%Y"), img_str, r['id']))
                     conn.commit()
                     st.rerun()
@@ -84,7 +82,7 @@ with tab1:
 with tab3:
     st.markdown("<div class='section-title'>PROJEÇÃO FUTURA</div>", unsafe_allow_html=True)
     hoje = datetime.date.today()
-    for i in range(1, 7): # Próximos 6 meses (excluindo o atual)
+    for i in range(1, 7):
         data_f = hoje + relativedelta(months=i)
         mes_f_str = data_f.strftime("%m")
         df_futuro = df_c[(df_c['pago'] == 0) & (df_c['vencimento'].str.contains(f"/{mes_f_str}"))]
@@ -92,6 +90,16 @@ with tab3:
             with st.expander(f"📅 {data_f.strftime('%B/%Y').upper()} - Total: R$ {df_futuro['valor'].sum():,.2f}"):
                 for _, fut in df_futuro.iterrows():
                     st.write(f"**{fut['responsavel']}**: {fut['descricao']} - R$ {fut['valor']:,.2f} ({fut['vencimento']})")
+
+with tab4:
+    st.markdown("<div class='section-title'>HISTÓRICO</div>", unsafe_allow_html=True)
+    df_h = df_c[df_c['pago'] == 1].copy()
+    if not df_h.empty:
+        for _, h in df_h.iterrows():
+            with st.expander(f"{h['vencimento']} - {h['descricao']} (R$ {h['valor']:.2f})"):
+                st.write(f"Pago em: {h['data_pagamento']}")
+                if h['comprovante']:
+                    st.image(base64.b64decode(h['comprovante']), use_container_width=True)
 
 with tab5:
     tipo = st.radio("Registrar:", ["Saída", "Investimento"], horizontal=True)
@@ -108,8 +116,10 @@ with tab5:
         if st.form_submit_button("REGISTRAR"):
             if tipo == "Saída":
                 for i in range(int(rep)):
-                    v_p = dat + relativedelta(months=i) # MANTÉM O MESMO DIA, MUDA O MÊS
-                    cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (des, val, v_p.strftime("%d/%m"), res))
+                    v_p = dat + relativedelta(months=i)
+                    # Adiciona o número da parcela começando em 0 se for repetido
+                    desc_final = f"{des} ({i})" if rep > 1 else des
+                    cursor.execute("INSERT INTO contas (descricao, valor, vencimento, responsavel) VALUES (?, ?, ?, ?)", (desc_final, val, v_p.strftime("%d/%m"), res))
             else:
                 cursor.execute("INSERT INTO investimentos (descricao, categoria, valor, data) VALUES (?, ?, ?, ?)", (des, cat_inv, val, dat.strftime("%d/%m")))
             conn.commit()
