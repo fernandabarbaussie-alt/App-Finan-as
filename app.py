@@ -1,141 +1,178 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+import sqlite3
 import pandas as pd
 import datetime
 
 # --- CONFIGURAÇÃO ELITE PRO ---
-st.set_page_config(page_title="Elite Finance Cloud", page_icon="💳", layout="wide")
+st.set_page_config(
+    page_title="Elite Finance Pro", 
+    page_icon="💳", 
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# --- UI/UX PREMIUM 3.0 (DESIGN DE ALTO NÍVEL) ---
+# --- UI/UX PREMIUM (CSS INJECTION) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;500;800&display=swap');
     
     /* Configuração Geral */
     html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-        background-color: #0A0E14; /* Deep Navy Background */
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-color: #0A0E14; 
         color: #E2E8F0;
     }
 
-    /* Esconder o que não é profissional */
+    /* Ocultar elementos padrão do Streamlit */
     header, footer, #MainMenu {visibility: hidden;}
-    .block-container {padding-top: 1rem; max-width: 600px;} /* Centralizado para celular */
+    .block-container {padding-top: 1.5rem; max-width: 600px; margin: auto;}
 
-    /* Dashboard Cards (Glassmorphism + Glow) */
+    /* Cards de Resumo (Glow verde) */
     div[data-testid="stMetric"] {
         background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
-        border: 1px solid rgba(0, 255, 163, 0.2); /* Glow Verde */
-        backdrop-filter: blur(12px);
+        border: 1px solid rgba(0, 255, 163, 0.2);
+        backdrop-filter: blur(15px);
         padding: 20px;
-        border-radius: 22px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+        border-radius: 24px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
 
     /* Cores das Métricas */
     div[data-testid="stMetricValue"] {
-        color: #00FFA3 !important; /* Mint Green */
+        color: #00FFA3 !important;
         font-weight: 800;
+        font-size: 1.8rem !important;
     }
 
-    /* Estilo das Abas (Modern Tabs) */
+    /* Estilo das Abas Modernas */
     .stTabs [data-baseweb="tab-list"] {
         background-color: #141B26;
-        padding: 6px;
-        border-radius: 16px;
+        padding: 8px;
+        border-radius: 20px;
         border: 1px solid #1E293B;
+        gap: 10px;
     }
     .stTabs [data-baseweb="tab"] {
         color: #94A3B8;
         font-weight: 500;
-        transition: all 0.3s ease;
+        border-radius: 15px;
+        padding: 8px 16px;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #00FFA3 !important; /* Fundo Verde no Selecionado */
-        color: #050505 !important; /* Texto Preto para Contraste */
-        border-radius: 12px;
+        background-color: #00FFA3 !important;
+        color: #050505 !important;
     }
 
-    /* Cards de Lista de Gastos */
+    /* Card de Transação Estilizado */
     .expense-card {
         background: #141B26;
-        border-radius: 16px;
-        padding: 16px;
+        border-radius: 18px;
+        padding: 18px;
         margin-bottom: 12px;
-        border-left: 4px solid #FF3366; /* Rosa para pendente */
+        border: 1px solid #1E293B;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        border-left: 5px solid #FF3366; /* Rosa para pendente */
     }
 
-    /* Botões Premium */
+    /* Botão Principal Estilo Apple */
     .stButton>button {
         background: linear-gradient(90deg, #00FFA3 0%, #00D1FF 100%);
         color: #000;
         border: none;
-        border-radius: 14px;
+        border-radius: 16px;
         font-weight: 800;
-        letter-spacing: 1px;
-        padding: 15px;
-        transition: 0.4s;
+        height: 3.8rem;
+        width: 100%;
+        transition: 0.3s;
+        box-shadow: 0 4px 15px rgba(0, 255, 163, 0.2);
     }
-    .stButton>button:hover {
-        transform: scale(1.02);
-        box-shadow: 0 0 20px rgba(0, 255, 163, 0.4);
+    .stButton>button:active {
+        transform: scale(0.98);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXÃO CLOUD ---
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df_contas = conn.read(worksheet="contas")
-    df_invest = conn.read(worksheet="investimentos")
-except:
-    st.warning("⚠️ Aguardando conexão com a Planilha Elite...")
-    st.stop()
+# --- BANCO DE DADOS LOCAL (SQLite) ---
+conn = sqlite3.connect("financas_elite.db", check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute("CREATE TABLE IF NOT EXISTS contas (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, vencimento TEXT, pago INTEGER DEFAULT 0)")
+cursor.execute("CREATE TABLE IF NOT EXISTS investimentos (id INTEGER PRIMARY KEY AUTOINCREMENT, descricao TEXT, valor REAL, data TEXT, categoria TEXT)")
+conn.commit()
 
 # --- HEADER PREMIUM ---
-st.markdown("<p style='text-align: center; color: #00FFA3; font-weight: 800; font-size: 24px; margin-bottom: 0;'>PRIVATE<span style='color: white;'>BANKING</span></p>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #94A3B8; font-size: 12px; margin-top: 0;'>Wealth Management System</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #00FFA3; font-weight: 800; font-size: 26px; margin-bottom: 0;'>PRIVATE<span style='color: white;'>BANKING</span></p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: #94A3B8; font-size: 13px; margin-top: 0; letter-spacing: 2px;'>ULTRA-PREMIUM SYSTEM</p>", unsafe_allow_html=True)
 
-# --- ABAS ---
-tab1, tab2, tab3 = st.tabs(["⚡ Dashboard", "📑 Extrato", "💎 Novo"])
+# --- NAVEGAÇÃO POR ABAS ---
+tab_dash, tab_lista, tab_novo = st.tabs(["⚡ DASHBOARD", "📑 LISTA", "💎 NOVO"])
 
-with tab1:
-    # Resumo Visual
-    col1, col2 = st.columns(2)
-    pendente = df_contas[df_contas['pago'] == "Não"]['valor'].sum()
-    total_inv = df_invest['valor'].sum()
+# --- CARREGAR DADOS ---
+df_c = pd.read_sql("SELECT * FROM contas", conn)
+df_i = pd.read_sql("SELECT * FROM investimentos", conn)
+
+with tab_dash:
+    # Métricas de Impacto
+    c1, c2 = st.columns(2)
+    pendente = df_c[df_c['pago'] == 0]['valor'].sum()
+    investido = df_i['valor'].sum()
     
-    col1.metric("A PAGAR", f"R$ {pendente:,.2f}")
-    col2.metric("INVESTIDO", f"R$ {total_inv:,.2f}")
+    c1.metric("PENDENTE", f"R$ {pendente:,.2f}")
+    c2.metric("PATRIMÔNIO", f"R$ {investido:,.2f}")
 
-    st.markdown("<br><h4 style='font-size: 16px; color: #94A3B8;'>CONTAS VENCENDO</h4>", unsafe_allow_html=True)
+    st.markdown("<br><p style='color: #94A3B8; font-weight: 600; font-size: 14px;'>PRÓXIMOS VENCIMENTOS</p>", unsafe_allow_html=True)
     
-    for _, r in df_contas[df_contas['pago'] == "Não"].iterrows():
-        st.markdown(f"""
-            <div class="expense-card">
-                <div>
-                    <span style="color: white; font-weight: 600;">{r['descricao']}</span><br>
-                    <span style="color: #64748B; font-size: 12px;">Data: {r['vencimento']}</span>
+    # Filtrar apenas as pendentes
+    contas_pendentes = df_c[df_c['pago'] == 0]
+    if contas_pendentes.empty:
+        st.success("Tudo pago! Você está no controle. ✨")
+    else:
+        for _, r in contas_pendentes.iterrows():
+            st.markdown(f"""
+                <div class="expense-card">
+                    <div>
+                        <span style="color: white; font-weight: 600; font-size: 16px;">{r['descricao']}</span><br>
+                        <span style="color: #64748B; font-size: 12px;">Data: {r['vencimento']}</span>
+                    </div>
+                    <div style="color: #FF3366; font-weight: 800; font-size: 18px;">R$ {r['valor']:,.2f}</div>
                 </div>
-                <div style="color: #FF3366; font-weight: 800;">R$ {r['valor']:,.2f}</div>
-            </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-with tab3:
-    # Formulário de Inserção Estilizado
+with tab_lista:
+    st.markdown("### Histórico de Contas")
+    if not df_c.empty:
+        # Tabela simplificada e moderna
+        st.dataframe(df_c[['descricao', 'valor', 'vencimento', 'pago']], use_container_width=True, hide_index=True)
+        if st.button("Limpar Banco de Dados (CUIDADO)"):
+            cursor.execute("DELETE FROM contas")
+            conn.commit()
+            st.rerun()
+    else:
+        st.info("Nenhum dado registrado.")
+
+with tab_novo:
+    st.markdown("<p style='color: #00FFA3; font-weight: 700;'>LANÇAMENTO INTELIGENTE</p>", unsafe_allow_html=True)
+    
     with st.container():
-        st.markdown("<p style='color: #00FFA3;'>LANÇAMENTO RÁPIDO</p>", unsafe_allow_html=True)
         with st.form("form_v3", clear_on_submit=True):
-            tipo = st.pills("Selecione:", ["Conta", "Investimento"], default="Conta")
-            desc = st.text_input("Descrição")
-            val = st.number_input("Valor (R$)", min_value=0.0)
-            data = st.date_input("Vencimento")
+            tipo = st.selectbox("O que deseja registrar?", ["Conta", "Investimento"])
+            desc = st.text_input("Descrição (Ex: Aluguel, Ações...)")
+            val = st.number_input("Valor (R$)", min_value=0.0, step=10.0)
+            data = st.date_input("Data do Registro", datetime.date.today())
             
-            if st.form_submit_button("AUTORIZAR TRANSAÇÃO"):
-                # Lógica para adicionar na planilha (Simulação)
+            if st.form_submit_button("AUTORIZAR REGISTRO"):
+                if tipo == "Conta":
+                    cursor.execute("INSERT INTO contas (descricao, valor, vencimento) VALUES (?, ?, ?)", 
+                                 (desc, val, data.strftime("%d/%m")))
+                else:
+                    cursor.execute("INSERT INTO investimentos (descricao, valor, data, categoria) VALUES (?, ?, ?, ?)", 
+                                 (desc, val, data.strftime("%d/%m"), "Geral"))
+                conn.commit()
                 st.balloons()
-                st.success("Sincronizado via Cloud.")
+                st.success("Sincronizado localmente!")
+                st.rerun()
+
+# --- RODAPÉ ---
+st.markdown("<p style='text-align: center; color: #334155; font-size: 10px; margin-top: 50px;'>ELITE FINANCE V4.0 | SECURE LOCAL STORAGE</p>", unsafe_allow_html=True)
 
